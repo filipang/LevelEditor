@@ -1,6 +1,39 @@
 ﻿  LevelEdit.cpp
+c:\users\filip\documents\gamedev\leveleditor\leveledit\leveledit\leveledit.cpp(47): warning C4244: 'argument': conversion from 'float' to 'T', possible loss of data
+          with
+          [
+              T=int
+          ]
+c:\users\filip\documents\gamedev\leveleditor\leveledit\leveledit\leveledit.cpp(153): warning C4244: 'argument': conversion from 'T' to 'T', possible loss of data
+          with
+          [
+              T=int
+          ]
+          and
+          [
+              T=float
+          ]
+c:\users\filip\documents\gamedev\leveleditor\leveledit\leveledit\leveledit.cpp(178): warning C4244: 'argument': conversion from 'T' to 'T', possible loss of data
+          with
+          [
+              T=int
+          ]
+          and
+          [
+              T=float
+          ]
+c:\users\filip\documents\gamedev\leveleditor\leveledit\leveledit\leveledit.cpp(186): warning C4244: 'argument': conversion from 'T' to 'T', possible loss of data
+          with
+          [
+              T=int
+          ]
+          and
+          [
+              T=float
+          ]
+c:\users\filip\documents\gamedev\leveleditor\leveledit\leveledit\leveledit.cpp(106): warning C4101: 'grid': unreferenced local variable
   Generating code
-  1 of 69 functions ( 1.4%) were compiled, the rest were copied from previous compilation.
+  0 of 1054 functions ( 0.0%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
     0 functions had inline decision re-evaluated but remain unchanged
   Finished generating code

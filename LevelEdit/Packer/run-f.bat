@@ -1,0 +1,1 @@
+start TexturePacker.exe -r
