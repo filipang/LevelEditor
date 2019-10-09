@@ -1,5 +1,5 @@
 ﻿  LevelEdit.cpp
-c:\users\filip\documents\gamedev\leveleditor\leveledit\leveledit\leveledit.cpp(128): warning C4244: 'argument': conversion from 'float' to 'T', possible loss of data
+c:\users\filip\documents\gamedev\leveleditor\leveledit\leveledit\leveledit.cpp(42): warning C4244: 'argument': conversion from 'float' to 'T', possible loss of data
           with
           [
               T=int
