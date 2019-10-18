@@ -16,7 +16,7 @@ const usersWeight = 1 - tagWeight;
 const tagNecessityForMax = 0.5;
 const userTagNecessityForMax = 0.3;
 
-const autofill = true;
+const autofill = false;
 
 
 function wait(ms){
@@ -51,7 +51,7 @@ function getCounterFromCollection(name){
 
 exports.countinterestedchange = functions.database.ref('/{category}/{id}/{collection}/{changedelement}').onWrite(
     async (change) => {
-
+        console.log('THIS SHOULD HAPPEN FIRST');
       const collectionKey = change.after.ref.parent.key;
       const collectionRef = change.after.ref.parent;
       const countKey = getCounterFromCollection(collectionKey);
@@ -76,7 +76,8 @@ exports.countinterestedchange = functions.database.ref('/{category}/{id}/{collec
       // Return the promise from countRef.transaction() so our function
       // waits for this async event to complete before it exits.
       await countRef.transaction((current) => {
-        return (current || 0) + increment;
+          if(!current && increment === -1) return null;
+          return (current || 0) + increment;
       });
       console.log('Counter updated.');
       return null;
@@ -95,45 +96,41 @@ function doesTagExist(taglist, tag){
 
 //calculates jaccard index 2 users
 function su(user1, user2){
-    console.log('calculating ' + user1.key + ' which has ' + user1.child('interested_posts_id_list').numChildren()  + ' and ' + user2.key + ' which has ' + user2.child('interested_posts_id_list').numChildren());
 
     var userBasedWeight;
     var tagBasedWeight;
-    console.log('USER 1 HAS '  + user1.child('interested_posts_id_list').numChildren() + ' interested');
+    var userIntCount1 = user1.child('interestedInNumber').exists() ? user1.child('interestedInNumber').val() : 0;
+    var userIntCount2 = user2.child('interestedInNumber').exists() ? user2.child('interestedInNumber').val() : 0;
+    
+    var userTagCount1 = user1.child('tagcount').exists() ? user1.child('tagcount').val() : 0;
+    var userTagCount2 = user2.child('tagcount').exists() ? user2.child('tagcount').val() : 0;
 	var cnt = 0;
 	user1.child('interested_posts_id_list').forEach(function(childNode){
 		if(user2.child('interested_posts_id_list').child(childNode.key).exists()){
 			cnt++;
 		}	
 	});
-	console.log('found ' + cnt + ' similar items');
-	userBasedWeight = Number(       Number(cnt)/(   Number(user1.child('interestedInNumber').val()) + Number(user2.child('interestedInNumber').val()) -  Number(cnt)  ) );
+
+	userBasedWeight = Number(cnt) / (Number(userIntCount1) + Number(userIntCount2) - Number(cnt));
 	if(isNaN(userBasedWeight)) {
 	    userBasedWeight = Number(0);
 	}
 	userBasedWeight = clamp(userBasedWeight, 0, 1);
-	console.log('USER BASED WEIGHT ' + userBasedWeight);
 
 	cnt = 0;
-	console.log('USER 1 HAS '  + user1.child('tags').numChildren() + ' tags');
-	console.log('USER 1 HAS '  + user1.child('tagcount').val() + ' tags');
 
-	console.log('USER 2 HAS '  + user2.child('tags').numChildren() + ' tags');
-	console.log('USER 2 HAS '  + user2.child('tagcount').val() + ' tags');
 	user1.child('tags').forEach(function(childNode){
 	    if(doesTagExist(user2.child('tags'), childNode.child('title').val())){
-	        console.log(user2.child('tags') + ' AAAND ' +  childNode.child('title').val());
 	        cnt++;
 	    }	
 	});
 	
-	tagBasedWeight = Number(       (Number(cnt)/(   Number(user1.child('tagcount').val()) + Number(user2.child('tagcount').val()) -  Number(cnt)  )) / userTagNecessityForMax  );
+	tagBasedWeight = (Number(cnt) / (Number(userTagCount1) + Number(userTagCount2) - Number(cnt)  )) / Number(userTagNecessityForMax);
 	if(isNaN(tagBasedWeight)){
 	    tagBasedWeight = Number(0);
 	}
 	tagBasedWeight = clamp(tagBasedWeight, 0, 1);
 
-	console.log('TAG BASED WEIGHT ' + tagBasedWeight + ' FROM ' + cnt);
 	return clamp(userBasedWeight * usersWeight + tagBasedWeight * tagWeight, 0, 1);
 }
 
@@ -157,20 +154,19 @@ function csu(user, post){
 
 function cst(user, post){
 	//tag requirement
-	var cnt = 0;
+    var cnt = 0;
+    var userTagCount = user.child('tagcount').exists() ? user.child('tagcount').val() : 0; console.log("USER TAGS:" + userTagCount);
+    var postTagCount = post.child('tagcount').exists() ? post.child('tagcount').val() : 0; console.log("POST TAGS:" + postTagCount);
 	user.child('tags').forEach(function(childNode){
 	    if(doesTagExist(post.child('tags'), childNode.child('title').val())){
 			cnt++;
 		}	
 	});
-	if(post.child('tagcount').val()===0){
-	    return 0;
+	var ret = Number(cnt)/(Number(postTagCount)*tagNecessityForMax);
+	if( isNaN(ret) ) {
+	    return Number(0);
 	}
-	if(isNaN(Number(cnt)/(Number(post.child('tagcount').val())*tagNecessityForMax))) {
-	    return 0;
-	}
-	var ret = Number(cnt)/(Number(post.child('tagcount').val())*tagNecessityForMax);
-	return  clamp(ret, 0, 1);
+	return  Number(clamp(ret, 0, 1));
 }
 
 
@@ -246,13 +242,14 @@ function updatePostCoefsAll(baseref, value){
 
 function updatePostCoefsPost(baseref, post, value){
 
+    console.log('coeft for user ' + post.key+ ' for the post ' + post.numChildren());
     value.child('Users').forEach(function(userChildNode){
 
             var coeft = cst(userChildNode, post);
             var coefu = csu(userChildNode, post);
-            //console.log('coeft for user ' + userChildNode.key + ' for the post ' + postChildNode.key + ' is ' + coeft);
-            //console.log('coefu for user ' + userChildNode.key + ' for the post ' + postChildNode.key + ' is ' + coefu);
             var x = baseref.child('Users').child(userChildNode.key).child('post_coef_list').child(post.key).set(coeft * tagCoefficientWeight + coefu * usersCoefficientWeight);
+            console.log('for user ' + userChildNode.key + ' the coef was ' + coeft + tagCoefficientWeight + coefu + usersCoefficientWeight);
+            console.log('THIS SHOULD HAPPEN SECOND');
     });
 }
 
@@ -261,8 +258,11 @@ function updatePostCoefsPost(baseref, post, value){
 //Someone got added to the going or interested list of this post
 exports.updateWeightsOnListAddTrigger = functions.database.ref('/{category}/{id}/{collection}/{changedelement}').onWrite(
     async(change)=> {
+        console.log('WATITING FOR A BIT');
 
-    if(autofill) wait(100);//make sure counters are updated first
+        if(autofill) wait(1000);//make sure counters are updated first
+        console.log('WATITED FOR A BIT');
+
     var changedUserKey;
     var collectionRef = change.after.ref.parent;
     const baseref = change.after.ref.root;
@@ -290,7 +290,7 @@ exports.updateWeightsOnListAddTrigger = functions.database.ref('/{category}/{id}
 		    return baseref.once('value').then(function(value){
 
 		        updateUserCoefsUser(baseref, value.child('Users').child(changedUserKey), value);
-		        updatePostCoefs(baseref, value);
+		        updatePostCoefsAll(baseref, value);
 
 			    return;
 		    });
@@ -302,8 +302,9 @@ exports.updateWeightsOnListAddTrigger = functions.database.ref('/{category}/{id}
 
 exports.updateWeightsOnIdAddTrigger = functions.database.ref('/{category}/{id}').onWrite(
     async(change)=> {
-
-    if(autofill) wait(100);//make sure counters are updated first
+        console.log('WATITING FOR A BIT');
+        wait(1000);//make sure counters are updated first
+        console.log('WATITED FOR A BIT');
     const baseref = change.after.ref.root;
     var categoryRef = change.after.ref.parent;
     var itemRef = change.after.ref;
@@ -325,19 +326,22 @@ exports.updateWeightsOnIdAddTrigger = functions.database.ref('/{category}/{id}')
     }
     if(categoryRef.key==='posts'){
         var post = change.after;
-        console.log('POST ADDED: ' + change.after.key);
         if (change.after.exists() && !change.before.exists()) {
-            
+            console.log('POST ADDED: ' + change.after.key);
             return baseref.once('value').then(function(value){
 
-                updatePostCoefsPost(baseref, post, value);
+                updatePostCoefsPost(baseref, value.child('posts').child(post.key), value);
 
                 return;
             });
         } else if (!change.after.exists() && change.before.exists()) {
+            console.log('POST REMOVED: ' + change.before.key);
             return baseref.once('value').then(function(value){
                 value.child('Users').forEach(function(userChildNode){
                     baseref.child('Users').child(userChildNode.key).child('post_coef_list').child(change.before.key).remove();
+                    baseref.child('Users').child(userChildNode.key).child('interested_posts_id_list').child(change.before.key).remove();
+                    baseref.child('Users').child(userChildNode.key).child('going_posts_id_list').child(change.before.key).remove();
+
                 });
                 return;
             });
@@ -347,3 +351,24 @@ exports.updateWeightsOnIdAddTrigger = functions.database.ref('/{category}/{id}')
     }
     return null;
 });
+
+
+exports.validate = functions.database.ref('/{pending_posts}/{post}/{valid}').onWrite(
+    async(change)=> {
+        wait(1000);
+        const baseref = change.after.ref.root;
+       
+        if(change.after.ref.parent.parent.key === 'pending_posts'){
+                var postRef = change.after.ref.parent;
+                if(change.after.key === 'valid' && change.after.exists()){
+                    return postRef.once('value')
+                        .then(function(post){
+                            console.log('SEE IF THIS IS THE ISSUE        ' + post.child('tagcount').val());
+                            var x = baseref.child('posts').child(post.key).set(post.val());
+                            var y = baseref.child('pending_posts').child(post.key).remove();
+                            return null;
+                        });
+                }
+        }
+        return null;
+    });
